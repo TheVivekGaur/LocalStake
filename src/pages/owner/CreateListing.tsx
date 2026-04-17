@@ -106,7 +106,7 @@ export function CreateListing() {
             <Grid size={6}><TextField fullWidth label="Funding Required (₹)" type="number" value={fundingGoal} onChange={(e) => setFundingGoal(e.target.value)} /></Grid>
             <Grid size={6}><TextField fullWidth label="Your Contribution (₹)" type="number" value={ownerContribution} onChange={(e) => setOwnerContribution(e.target.value)} /></Grid>
             <Grid size={6}><TextField fullWidth label="Royalty %" type="number" value={royaltyPercent} onChange={(e) => setRoyaltyPercent(e.target.value)} /></Grid>
-            <Grid size={6}><TextField fullWidth label="Return Multiple" type="number" inputProps={{ step: 0.1 }} value={returnMultiple} onChange={(e) => setReturnMultiple(e.target.value)} /></Grid>
+            <Grid size={6}><TextField fullWidth label="Return Multiple" type="number" slotProps={{ htmlInput: { step: 0.1 } }} value={returnMultiple} onChange={(e) => setReturnMultiple(e.target.value)} /></Grid>
             <Grid size={6}><TextField fullWidth label="Min Investment (₹)" type="number" value={minInvestment} onChange={(e) => setMinInvestment(e.target.value)} /></Grid>
             <Grid size={6}><TextField fullWidth label="Max Investment (₹)" type="number" value={maxInvestment} onChange={(e) => setMaxInvestment(e.target.value)} /></Grid>
             <Grid size={6}><TextField fullWidth label="Est. Duration (months)" type="number" value={estimatedDuration} onChange={(e) => setEstimatedDuration(e.target.value)} /></Grid>

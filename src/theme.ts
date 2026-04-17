@@ -27,7 +27,6 @@ export const theme = createTheme({
       styleOverrides: {
         root: { borderRadius: 12, padding: '10px 24px', fontSize: '0.9rem' },
         sizeLarge: { padding: '14px 32px', fontSize: '1rem' },
-        containedSecondary: { color: '#fff', '&:hover': { backgroundColor: '#059669' } },
       },
     },
     MuiCard: {
