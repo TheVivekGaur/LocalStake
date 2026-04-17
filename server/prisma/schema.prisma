@@ -1,0 +1,293 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  INVESTOR
+  OWNER
+  ADMIN
+}
+
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  VERIFIED
+  REJECTED
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_REVIEW
+  ACTIVE
+  FUNDED
+  CLOSED
+  REJECTED
+}
+
+enum InvestmentStatus {
+  ESCROW
+  ACTIVE
+  COMPLETED
+  REFUNDED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum TransactionType {
+  INVESTMENT
+  ESCROW_RELEASE
+  PAYOUT
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum DocumentType {
+  PAN
+  AADHAAR
+  GST_CERTIFICATE
+  BANK_STATEMENT
+  BUSINESS_PHOTO
+  FINANCIAL_DOC
+  EXPANSION_PLAN
+  INVESTMENT_AGREEMENT
+  OTHER
+}
+
+// ─── USERS ───────────────────────────────────────────────
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  phone         String?   @unique
+  passwordHash  String?
+  name          String
+  role          UserRole  @default(INVESTOR)
+  kycStatus     KycStatus @default(PENDING)
+  avatar        String?
+  city          String?
+  budgetMin     Float?
+  budgetMax     Float?
+  categories    String[]  // preferred categories
+
+  // KYC fields
+  panNumber     String?
+  aadhaarNumber String?
+  digioKycId    String?   // Digio KYC request ID
+  kycVerifiedAt DateTime?
+
+  // OTP
+  otpCode       String?
+  otpExpiresAt  DateTime?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  businesses    Business[]
+  investments   Investment[]
+  documents     Document[]
+  notifications Notification[]
+
+  @@index([email])
+  @@index([role])
+}
+
+// ─── BUSINESSES ──────────────────────────────────────────
+model Business {
+  id          String   @id @default(uuid())
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  name        String
+  category    String
+  city        String
+  address     String?
+  description String
+  verified    Boolean  @default(false)
+  gstNumber   String?
+  panNumber   String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  listings    Listing[]
+  documents   Document[]
+
+  @@index([ownerId])
+  @@index([category])
+  @@index([city])
+}
+
+// ─── LISTINGS ────────────────────────────────────────────
+model Listing {
+  id                String        @id @default(uuid())
+  businessId        String
+  business          Business      @relation(fields: [businessId], references: [id])
+  title             String
+  description       String
+  fundingGoal       Float
+  raisedAmount      Float         @default(0)
+  ownerContribution Float
+  royaltyPercent    Float
+  returnMultiple    Float
+  estimatedDuration Int           // months
+  minInvestment     Float
+  maxInvestment     Float
+  monthlyRevenue    Float         // current
+  expectedRevenue   Float         // projected
+  status            ListingStatus @default(DRAFT)
+  investorCount     Int           @default(0)
+  fundedAt          DateTime?
+  closedAt          DateTime?
+
+  // Escrow
+  escrowBalance     Float         @default(0)
+  escrowReleased    Boolean       @default(false)
+
+  // Leegality agreement template
+  agreementTemplateId String?
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  investments       Investment[]
+  revenueReports    RevenueReport[]
+  documents         Document[]
+
+  @@index([businessId])
+  @@index([status])
+}
+
+// ─── INVESTMENTS ─────────────────────────────────────────
+model Investment {
+  id             String           @id @default(uuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id])
+  listingId      String
+  listing        Listing          @relation(fields: [listingId], references: [id])
+  amount         Float
+  expectedReturn Float
+  totalPaid      Float            @default(0)
+  status         InvestmentStatus @default(ESCROW)
+
+  // Razorpay
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+
+  // Leegality signed agreement
+  agreementId       String?
+  agreementSignedAt DateTime?
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  payouts        Payout[]
+  transactions   Transaction[]
+
+  @@index([userId])
+  @@index([listingId])
+  @@index([status])
+}
+
+// ─── REVENUE REPORTS ─────────────────────────────────────
+model RevenueReport {
+  id          String   @id @default(uuid())
+  listingId   String
+  listing     Listing  @relation(fields: [listingId], references: [id])
+  month       String   // "2026-04"
+  revenue     Float
+  payoutPool  Float    // revenue * royaltyPercent
+  distributed Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+
+  payouts     Payout[]
+
+  @@unique([listingId, month])
+  @@index([listingId])
+}
+
+// ─── PAYOUTS ─────────────────────────────────────────────
+model Payout {
+  id              String       @id @default(uuid())
+  investmentId    String
+  investment      Investment   @relation(fields: [investmentId], references: [id])
+  revenueReportId String?
+  revenueReport   RevenueReport? @relation(fields: [revenueReportId], references: [id])
+  amount          Float
+  status          PayoutStatus @default(PENDING)
+
+  // Razorpay payout
+  razorpayPayoutId String?
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([investmentId])
+  @@index([status])
+}
+
+// ─── TRANSACTIONS ────────────────────────────────────────
+model Transaction {
+  id            String            @id @default(uuid())
+  investmentId  String?
+  investment    Investment?       @relation(fields: [investmentId], references: [id])
+  type          TransactionType
+  amount        Float
+  status        TransactionStatus @default(PENDING)
+  razorpayId    String?
+  metadata      Json?
+
+  createdAt     DateTime          @default(now())
+
+  @@index([investmentId])
+  @@index([type])
+}
+
+// ─── DOCUMENTS ───────────────────────────────────────────
+model Document {
+  id          String       @id @default(uuid())
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id])
+  businessId  String?
+  business    Business?    @relation(fields: [businessId], references: [id])
+  listingId   String?
+  listing     Listing?     @relation(fields: [listingId], references: [id])
+  type        DocumentType
+  fileName    String
+  fileUrl     String
+  fileSize    Int?
+  mimeType    String?
+
+  createdAt   DateTime     @default(now())
+
+  @@index([userId])
+  @@index([businessId])
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  link      String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
