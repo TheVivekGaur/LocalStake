@@ -1753,3 +1753,207 @@ sudo tail -f /var/log/nginx/error.log
 | **Total** | | | **$0/month** |
 
 After 12 months: EC2 ~$8/mo + RDS ~$13/mo = ~$21/month
+
+
+---
+
+## AWS Infrastructure — Beginner's Guide (What We Set Up & Why)
+
+### What Is AWS?
+
+Amazon Web Services (AWS) is Amazon's cloud computing platform. Instead of buying physical servers and putting them in your office, you rent virtual servers from Amazon's data centers. You pay only for what you use (or nothing on free tier for 12 months).
+
+### What We Created on AWS
+
+We created two things:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    AWS Cloud (eu-north-1)                │
+│                                                         │
+│  ┌─────────────────┐      ┌──────────────────────┐     │
+│  │   EC2 Instance   │      │   RDS PostgreSQL     │     │
+│  │   (t2.micro)     │─────▶│   (db.t4g.micro)     │     │
+│  │                  │      │                      │     │
+│  │  Your backend    │      │  Your database       │     │
+│  │  Express server  │      │  All tables & data   │     │
+│  │  IP: 13.61.15.174│      │  localstake-db       │     │
+│  └─────────────────┘      └──────────────────────┘     │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+### EC2 — Elastic Compute Cloud (Your Server)
+
+**What it is:** A virtual computer running in Amazon's data center. Think of it as a laptop that's always on, always connected to the internet, and you can access it remotely.
+
+**What we chose:**
+- Instance type: `t2.micro` — 1 CPU, 1 GB RAM (free tier)
+- OS: Amazon Linux 2023 (like a lightweight Linux)
+- Region: eu-north-1 (Stockholm) — where the server physically lives
+
+**What's running on it:**
+- Node.js 22 — JavaScript runtime
+- Your Express backend server (the API)
+- PM2 — process manager that keeps the server running 24/7, auto-restarts if it crashes
+- Nginx — web server that sits in front of Express, handles incoming HTTP requests on port 80 and forwards them to your Express app on port 4000
+
+**How to access it:**
+```bash
+ssh -i ~/Downloads/localstake-key.pem ec2-user@13.61.15.174
+```
+The `.pem` file is your private key — like a password file. Never share it. `ec2-user` is the default username on Amazon Linux.
+
+**Key file:** `~/Downloads/localstake-key.pem` — this is the ONLY way to access your server. If you lose this file, you lose access to the server. Back it up somewhere safe.
+
+### RDS — Relational Database Service (Your Database)
+
+**What it is:** A managed PostgreSQL database. Amazon handles backups, updates, and keeps it running. You just store and query data.
+
+**What we chose:**
+- Engine: PostgreSQL 17
+- Instance: `db.t4g.micro` — 2 CPUs, 1 GB RAM (free tier)
+- Storage: 20 GB
+- Region: eu-north-1 (same as EC2 for low latency)
+
+**Connection details:**
+- Endpoint: `localstake-db.cfssks8k2cb4.eu-north-1.rds.amazonaws.com`
+- Port: 5432
+- Username: `postgres`
+- Password: `LocalStake2026Secure`
+- Database: `postgres` (default)
+
+**What's stored in it:**
+All 10 tables from the Prisma schema — Users, Businesses, Listings, Investments, Payouts, RevenueReports, Transactions, Documents, Notifications. Plus the seeded demo data.
+
+### Security Groups (Firewall Rules)
+
+Security groups are like firewall rules that control who can connect to your EC2 and RDS.
+
+**EC2 security group allows:**
+- Port 22 (SSH) — so you can log in remotely
+- Port 80 (HTTP) — so the internet can reach your API
+- Port 443 (HTTPS) — for future SSL
+- Port 4000 — direct access to Express (backup)
+
+**RDS security group allows:**
+- Port 5432 (PostgreSQL) — from anywhere (for setup; should restrict to EC2 only later)
+
+### Nginx — The Reverse Proxy
+
+**What it does:** Nginx sits between the internet and your Express server.
+
+```
+Internet → Port 80 (Nginx) → Port 4000 (Express)
+```
+
+**Why not just use Express directly on port 80?**
+- Nginx handles SSL/HTTPS (when you add a domain)
+- Nginx can serve static files faster
+- Nginx can handle thousands of connections efficiently
+- Nginx can load-balance across multiple Express instances (when you scale)
+- Running Node.js on port 80 requires root privileges (security risk)
+
+### PM2 — Process Manager
+
+**What it does:** Keeps your Express server running forever.
+
+Without PM2: if your server crashes or the EC2 reboots, the API goes down and stays down.
+With PM2: it auto-restarts the server on crash, auto-starts on EC2 reboot, and gives you logs.
+
+**Useful PM2 commands (run after SSH-ing into EC2):**
+```bash
+pm2 status              # See if server is running
+pm2 logs localstake-api # View live logs
+pm2 restart localstake-api  # Restart server
+pm2 stop localstake-api     # Stop server
+```
+
+### How to Update the Server (After Code Changes)
+
+When you push new code to GitHub:
+```bash
+# SSH into EC2
+ssh -i ~/Downloads/localstake-key.pem ec2-user@13.61.15.174
+
+# Pull latest code
+cd ~/LocalStake/server
+git pull
+
+# Install any new dependencies
+npm install
+npx prisma generate
+
+# If you changed the database schema:
+DATABASE_URL="postgresql://postgres:LocalStake2026Secure@localstake-db.cfssks8k2cb4.eu-north-1.rds.amazonaws.com:5432/postgres" npx prisma db push
+
+# Restart the server
+pm2 restart localstake-api
+```
+
+---
+
+## Complete Deployment Summary — What's Where
+
+### Frontend (Vercel)
+- URL: Your Vercel URL (e.g. `https://local-stake-three.vercel.app`)
+- What: React app with MUI, all 12 pages
+- Deploys: Automatically when you push to GitHub
+- Cost: Free
+
+### Backend (AWS EC2)
+- URL: `http://13.61.15.174/api`
+- What: Express API server with 40+ endpoints
+- IP: `13.61.15.174`
+- Access: SSH with `localstake-key.pem`
+- Process: Managed by PM2
+- Proxy: Nginx on port 80 → Express on port 4000
+- Cost: Free (12 months)
+
+### Database (AWS RDS)
+- Endpoint: `localstake-db.cfssks8k2cb4.eu-north-1.rds.amazonaws.com`
+- What: PostgreSQL with 10 tables, seeded demo data
+- Port: 5432
+- Cost: Free (12 months)
+
+### Code Repository (GitHub)
+- URL: `https://github.com/TheVivekGaur/LocalStake`
+- Visibility: Public (changed from private for EC2 cloning)
+- Branch: `main`
+
+### How They Connect
+
+```
+User opens browser
+  → Vercel serves the React frontend
+  → User clicks "Login" or "Explore"
+  → Frontend makes API call to http://13.61.15.174/api/...
+  → Nginx on EC2 receives the request on port 80
+  → Nginx forwards to Express on port 4000
+  → Express processes the request
+  → Prisma queries the RDS PostgreSQL database
+  → Response flows back: RDS → Express → Nginx → Frontend → User
+```
+
+### Important Files & Credentials
+
+| Item | Location |
+|------|----------|
+| SSH Key | `~/Downloads/localstake-key.pem` |
+| EC2 IP | `13.61.15.174` |
+| RDS Endpoint | `localstake-db.cfssks8k2cb4.eu-north-1.rds.amazonaws.com` |
+| RDS Password | `LocalStake2026Secure` |
+| Server code on EC2 | `/home/ec2-user/LocalStake/server/` |
+| Server .env on EC2 | `/home/ec2-user/LocalStake/server/.env` |
+| PM2 logs | `pm2 logs localstake-api` |
+| Nginx config | `/etc/nginx/conf.d/localstake.conf` |
+
+### Free Tier Limits (12 months from account creation)
+
+| Service | Free Limit | What Happens After |
+|---------|-----------|-------------------|
+| EC2 t2.micro | 750 hours/month | ~$8/month |
+| RDS db.t4g.micro | 750 hours/month | ~$13/month |
+| RDS Storage | 20 GB | $0.115/GB/month |
+| Data Transfer | 100 GB/month out | $0.09/GB |
+| S3 (if added) | 5 GB | $0.023/GB/month |
