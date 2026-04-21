@@ -24,12 +24,12 @@ export function OwnerDashboard() {
 
   return (
     <Container maxWidth="lg" sx={{ py: 5 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 4 }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} spacing={2} sx={{ mb: 4 }}>
         <Box>
           <Typography variant="h3">Owner Dashboard</Typography>
           <Typography color="text.secondary">Manage your listings and track funding.</Typography>
         </Box>
-        <Button component={Link} to="/owner/create-listing" variant="contained" color="secondary" startIcon={<Add />} disableElevation>
+        <Button component={Link} to="/owner/create-listing" variant="contained" color="secondary" startIcon={<Add />} disableElevation sx={{ flexShrink: 0 }}>
           Create Listing
         </Button>
       </Stack>
