@@ -2,10 +2,10 @@ import Razorpay from 'razorpay'
 import crypto from 'crypto'
 import { env } from '../config/env'
 
-const razorpay = new Razorpay({
-  key_id: env.razorpayKeyId,
-  key_secret: env.razorpayKeySecret,
-})
+// Only initialize Razorpay if keys are provided
+const razorpay = env.razorpayKeyId
+  ? new Razorpay({ key_id: env.razorpayKeyId, key_secret: env.razorpayKeySecret })
+  : null
 
 // ─── Create order for investment ─────────────────────────
 export async function createInvestmentOrder(params: {
@@ -15,6 +15,10 @@ export async function createInvestmentOrder(params: {
   investorName: string
   listingTitle: string
 }) {
+  if (!razorpay) {
+    // Return mock order when Razorpay not configured
+    return { id: `mock_order_${params.investmentId}`, amount: Math.round(params.amount * 100), currency: 'INR' }
+  }
   const order = await razorpay.orders.create({
     amount: Math.round(params.amount * 100), // paise
     currency: 'INR',
@@ -44,11 +48,13 @@ export function verifyPaymentSignature(params: {
 
 // ─── Fetch payment details ───────────────────────────────
 export async function fetchPayment(paymentId: string) {
+  if (!razorpay) return { id: paymentId, status: 'captured' }
   return razorpay.payments.fetch(paymentId)
 }
 
 // ─── Initiate refund ─────────────────────────────────────
 export async function initiateRefund(paymentId: string, amount?: number) {
+  if (!razorpay) return { id: 'mock_refund', status: 'processed' }
   const refundParams: Record<string, unknown> = {}
   if (amount) {
     refundParams.amount = Math.round(amount * 100)
