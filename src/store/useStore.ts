@@ -2,6 +2,11 @@ import { create } from 'zustand'
 import type { UserRole } from '@/types'
 import { api } from '@/lib/api'
 
+// Normalize role to lowercase to match frontend expectations
+function normalizeRole(role: string): UserRole {
+  return role.toLowerCase() as UserRole
+}
+
 interface User {
   id: string
   name: string
@@ -30,13 +35,14 @@ interface AppState {
 export const useStore = create<AppState>((set) => ({
   user: null,
   isAuthenticated: !!localStorage.getItem('token'),
-  activeRole: (localStorage.getItem('activeRole') as UserRole) || 'investor',
+  activeRole: normalizeRole(localStorage.getItem('activeRole') || 'investor'),
   loading: false,
 
   setUser: (user, token) => {
     api.setToken(token)
-    localStorage.setItem('activeRole', user.role)
-    set({ user, isAuthenticated: true, activeRole: user.role as UserRole })
+    const role = normalizeRole(user.role)
+    localStorage.setItem('activeRole', role)
+    set({ user: { ...user, role }, isAuthenticated: true, activeRole: role })
   },
 
   login: async (email, password) => {
@@ -44,8 +50,9 @@ export const useStore = create<AppState>((set) => ({
     try {
       const { user, token } = await api.login(email, password)
       api.setToken(token)
-      localStorage.setItem('activeRole', user.role)
-      set({ user, isAuthenticated: true, activeRole: user.role, loading: false })
+      const role = normalizeRole(user.role)
+      localStorage.setItem('activeRole', role)
+      set({ user: { ...user, role }, isAuthenticated: true, activeRole: role, loading: false })
     } catch (err) {
       set({ loading: false })
       throw err
@@ -57,8 +64,9 @@ export const useStore = create<AppState>((set) => ({
     try {
       const { user, token } = await api.register(data)
       api.setToken(token)
-      localStorage.setItem('activeRole', user.role)
-      set({ user, isAuthenticated: true, activeRole: user.role, loading: false })
+      const role = normalizeRole(user.role)
+      localStorage.setItem('activeRole', role)
+      set({ user: { ...user, role }, isAuthenticated: true, activeRole: role, loading: false })
     } catch (err) {
       set({ loading: false })
       throw err
@@ -74,8 +82,9 @@ export const useStore = create<AppState>((set) => ({
     try {
       const { user, token } = await api.verifyOtp(email, otp)
       api.setToken(token)
-      localStorage.setItem('activeRole', user.role)
-      set({ user, isAuthenticated: true, activeRole: user.role, loading: false })
+      const role = normalizeRole(user.role)
+      localStorage.setItem('activeRole', role)
+      set({ user: { ...user, role }, isAuthenticated: true, activeRole: role, loading: false })
     } catch (err) {
       set({ loading: false })
       throw err
@@ -85,7 +94,8 @@ export const useStore = create<AppState>((set) => ({
   fetchMe: async () => {
     try {
       const user = await api.getMe()
-      set({ user, isAuthenticated: true, activeRole: user.role })
+      const role = normalizeRole(user.role)
+      set({ user: { ...user, role }, isAuthenticated: true, activeRole: role })
     } catch {
       api.setToken(null)
       set({ user: null, isAuthenticated: false })
@@ -95,11 +105,13 @@ export const useStore = create<AppState>((set) => ({
   logout: () => {
     api.setToken(null)
     localStorage.removeItem('activeRole')
-    set({ user: null, isAuthenticated: false })
+    localStorage.removeItem('token')
+    set({ user: null, isAuthenticated: false, activeRole: 'investor' })
   },
 
   switchRole: (role) => {
-    localStorage.setItem('activeRole', role)
-    set({ activeRole: role })
+    const normalized = normalizeRole(role)
+    localStorage.setItem('activeRole', normalized)
+    set({ activeRole: normalized })
   },
 }))

@@ -19,12 +19,17 @@ const ownerLinks = [
   { to: '/owner/create-listing', label: 'Create Listing' },
   { to: '/owner/payouts', label: 'Payouts' },
 ]
+const adminLinks = [
+  { to: '/', label: 'Home' },
+  { to: '/admin', label: 'Admin Panel' },
+  { to: '/explore', label: 'Explore' },
+]
 
 export function Navbar() {
   const { isAuthenticated, activeRole, user, logout, switchRole } = useStore()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
-  const links = activeRole === 'owner' ? ownerLinks : investorLinks
+  const links = activeRole === 'admin' ? adminLinks : activeRole === 'owner' ? ownerLinks : investorLinks
 
   return (
     <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid', borderColor: 'divider' }}>

@@ -12,7 +12,7 @@ export function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-  const { login } = useStore()
+  const { login, activeRole } = useStore()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,7 +20,10 @@ export function Login() {
     setLoading(true)
     try {
       await login(email, password)
-      navigate('/dashboard')
+      const role = useStore.getState().activeRole
+      if (role === 'admin') navigate('/admin')
+      else if (role === 'owner') navigate('/owner/dashboard')
+      else navigate('/dashboard')
     } catch (err: any) {
       setError(err.message || 'Login failed')
     } finally {
